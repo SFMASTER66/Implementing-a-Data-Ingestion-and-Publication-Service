@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="//code.jquery.com/jquery-2.1.3.min.js"></script>
+    <script type="text/javascript" src="{{ url_for('static',filename='jquery.json-viewer.js') }}"></script>
+    <link type="text/css" rel="stylesheet" href= "{{ url_for('static',filename='jquery.json-viewer.css') }}"/>
+</head>
+<body style="position:absolute">
+<H3>NSW Crime Data Import and Publication Service</H3>
+<hr>
+<h1>Authentication details</h1>
+        <div>username:<div/> <input type="text"  name='username' placeholder="username" id="name"/>
+        <div>password:</div> <input type="password" name='password' placeholder="password" id="password" />
+        <button type="button" onclick="get_token()">get the token</button>
+        <div>The following will be the token: </div>
+        <div id="showtoken"></div>
+<h1>LGA Data Import(i.e., POST operation)</h1>
+    <form method="POST" role="form"  action="http://127.0.0.1:5000/crimes" name="updating" id="updating" onsubmit="return update_student_mark();" >
+         <div>lga name:</div>
+         <input type="text" name="lganame" placeholder="lganame" id="lganame"/>
+         <button type="button" onclick="post_crimes_lgname()">Run</button>
+         <div>postcode(Please input number):</div>
+         <input type="text" name="postcode" placeholder="postcode" id="postcode"/>
+         <button type="button" onclick="post_crimes_postcode()">Run</button>
+    </form>
+    <div>The following will be the ID of data entry: </div>
+    <div id="dataentry"></div>
+
+<h1>GET the collection (i.e., GET all data entries):</h1>
+<lebel>Content Negotiation Option (JSON):</lebel><input type="checkbox" id="showAllData"/>
+<button type="button" onclick="get_data_list()">Get Collection</button>
+<div id="alldata"></div>
+
+<h1>GET a sinlge LGA crime statics data(i.e., GET a single entry):</h1>
+<div>Just input the name of the LGA region</div>
+<div><lable>Id of the data entry: </lable> <input type="text" id="singledata" placeholder="lganame"></div>
+<lebel>Content Negotiation Option (JSON):</lebel><input type="checkbox" id="clicksingle"/>
+<button type="button" onclick="get_a_data()">Get Collection</button>
+<div id="showsingledata"></div>
+
+<h1>Retreiving data entries with filter</h1>
+<label>Please fill out the inputs below to retreive data entries</label>
+<div>Just input the name of the LGA region</div>
+<div><lable>Filter Scenario: </lable> <input type="text" placeholder="lganame1" id="filtername1"><label> </label><input id="filtername2" type="text" placeholder="lganame2 or year"></div>
+<lebel>Content Negotiation Option (JSON):</lebel><input type="checkbox" id="filterdata"/>
+<button type="button" onclick="get_data_url()">Get Collection</button>
+<div id="showfilterdata"></div>
+
+<h1> Delete Data </h1>
+<label>Id of the data entry:</label> <input type="text" placeholder="lganame" id="dataDelete"/>
+<button type="button" id="btndelete" onclick="delete_crimes_postcode()">Delete Data</button>
+<div id="deletedata"></div>
+
+<div id='loading' style="display: none;position:relative;left: 549px;top:-595px; "><img  src="{{ url_for('static',filename='loading.gif') }}" alt=""></div>
+
+<script>
+
+    //generating token
+    function get_token(){
+        let loading = document.getElementById('loading');
+        loading.style.display = "block";
+        let name = document.getElementById('name').value;
+        let password = document.getElementById('password').value;
+        parent_tag =  document.getElementById("showtoken");
+        if(document.getElementById("intoken")){
+            dynamic_tag = document.getElementById("intoken");
+            parent_tag.removeChild(dynamic_tag);
+        }
+        if ((name=="admin" && password=="admin") || (name=="guest" && password=="guest")){
+            const url = 'http://127.0.0.1:5000/auth';
+                     fetch(url,{
+                    method: 'post',
+                    headers: {'Content-Type' : 'application/json'},
+                    body: JSON.stringify({
+                        name: name,
+                        password: password
+                    })
+                 })
+                .then((response) => response.json())
+                .then(function(data){
+                    loading.style.display = "none";
+                let div =document.createElement('div');
+                div.setAttribute('id',"intoken");
+                div.innerHTML = data.id;
+                parent_tag.appendChild(div);
+        })
+        }else{
+            loading.style.display = "none";
+            alert('Before getting token, please entering correct username and password.')
+        }
+    }
+
+    //Fetching a data
+    function get_a_data(){
+        let loading = document.getElementById('loading');
+        loading.style.display = "block";
+        let filtername1 = document.getElementById('singledata').value;
+        let name = document.getElementById('name').value;
+        let password = document.getElementById('password').value;
+        parent_tag =  document.getElementById("showsingledata");
+
+        let div =document.createElement('div');
+        let currentdate = new Date();
+        div.setAttribute('id',"singledd");
+        if(document.getElementById("singledd")){
+            dynamic_tag = document.getElementById("singledd");
+            parent_tag.removeChild(dynamic_tag);       //It need to delete the previous data when click the button to get data
+        }
+        if(document.getElementById("intoken")==null){    //when the token is empty, prohibit to do anything
+            loading.style.display = "none";
+            let div =document.createElement('div');
+            div.setAttribute('id',"singledd");
+            div.innerHTML = "You should input name and password and get the login";
+            return parent_tag.appendChild(div);
+        }
+        intoken =  document.getElementById("intoken").textContent;
+        if(clicksingle.checked){
+            const url = 'http://127.0.0.1:5000/getsingle?name1='+filtername1+'&'+'type='+'json';
+             fetch(url,{
+                 method: 'get',
+                 headers: {'Content-Type' : 'application/json',"AUTH_TOKEN":intoken}    //add the generated token into header to validate the user
+            })
+            .then((response) => response.json())
+            .then(function(data){
+                loading.style.display = "none";
+                if (JSON.stringify(data.alldata) === '{}'){
+                    let lganamediv = document.createElement('div');
+                    lganamediv.innerHTML = "The data does not exist."+'. the status is 404';
+                    return div.appendChild(lganamediv);
+                }
+                var i;
+                for (a in data.alldata){
+                    let lganamediv = document.createElement('div');
+                    let filediv = document.createElement('pre');
+                    filediv.setAttribute('class',"json-renderer4");
+                    lganamediv.innerHTML = 'https://mlab.com/databases/my-database/collections/crime/'+a+'. the status is 200';
+                    lganamediv.appendChild(filediv)
+                    div.appendChild(lganamediv);
+                    $('.json-renderer4').jsonViewer(data.alldata[a]);
+                    }
+                });
+                    parent_tag.appendChild(div);
+
+        }else{
+            const url = 'http://127.0.0.1:5000/getsingle?name1='+filtername1+'&'+'type='+'xml';
+            fetch(url,{
+                 method: 'get',
+                 headers: {'Content-Type' : 'application/json',"AUTH_TOKEN":intoken}
+            })
+                    .then((response) => response.json())
+            .then(function(data){
+                loading.style.display = "none";
+                if (JSON.stringify(data.alldata) === '{}'){
+                    let lganamediv = document.createElement('div');
+                    lganamediv.innerHTML = "The data does not exist."+'. the status is 404';
+                    return div.appendChild(lganamediv);
+                }
+                for (a in data.alldata){
+                    let filediv = document.createElement('pre');    //for output the data
+                    filediv.textContent =data.alldata[a];
+                    div.appendChild(filediv);
+                    }
+                });
+                    parent_tag.appendChild(div);
+        }
+    }
+
+    //Using Fetch for getting some data
+    function get_data_url(){
+        let loading = document.getElementById('loading');
+        loading.style.display = "block";
+        let filtername1 = document.getElementById('filtername1').value;
+        let filtername2 = document.getElementById('filtername2').value;
+        let name = document.getElementById('name').value;
+        let password = document.getElementById('password').value;
+        parent_tag =  document.getElementById("showfilterdata");
+        let div =document.createElement('div');
+        let currentdate = new Date();
+        div.setAttribute('id',"showfilterfile");
+        if(document.getElementById("showfilterfile")){
+            dynamic_tag = document.getElementById("showfilterfile");
+            parent_tag.removeChild(dynamic_tag);
+        }
+        if(document.getElementById("intoken")==null){
+            loading.style.display = "none";
+            let div =document.createElement('div');
+            div.setAttribute('id',"showfilterfile");
+            div.innerHTML = "You should input name and password and get the login";
+            return parent_tag.appendChild(div);
+        }
+        intoken =  document.getElementById("intoken").textContent;
+
+        if (filtername1 && filtername2){
+            if(filterdata.checked){
+                const url = 'http://127.0.0.1:5000/crimes/filter?name1='+filtername1+'&'+'name2='+filtername2+"&"+"type="+'json';
+                 fetch(url,{
+                 method: 'get',
+                 headers: {'Content-Type' : 'application/json',"AUTH_TOKEN":intoken}
+            })
+                .then((response) => response.json())
+                .then(function(data){
+                    loading.style.display = "none";
+                    if (JSON.stringify(data.alldata) === '{}'){
+                        let lganamediv = document.createElement('div');
+                        lganamediv.innerHTML = "The data does not exist."+'. the status is 404';
+                        return div.appendChild(lganamediv);
+                    }
+                    if (data.alldata == 'The data does not exist.'){
+                        let lganamediv = document.createElement('div');
+                        lganamediv.innerHTML = "The data does not exist."+'. the status is 404';
+                        return div.appendChild(lganamediv);
+                    }
+                    var i;
+                    for (a in data.alldata){
+                        let lganamediv = document.createElement('div');     //for output the data
+                        let filediv = document.createElement('pre');
+                        filediv.setAttribute('class',"json-renderer3");
+                        lganamediv.innerHTML = 'https://mlab.com/databases/my-database/collections/crime/'+a+'. the status is 200';
+                        lganamediv.appendChild(filediv);
+                        div.appendChild(lganamediv);
+                        $('.json-renderer3').jsonViewer(data.alldata[a]);
+                        }
+                    });
+                        parent_tag.appendChild(div);
+            }else{
+                const url = 'http://127.0.0.1:5000/crimes/filter?name1='+filtername1+'&'+'name2='+filtername2+"&"+"type="+'xml';
+                fetch(url,{
+                 method: 'get',
+                 headers: {'Content-Type' : 'application/json',"AUTH_TOKEN":intoken}
+            })
+                        .then((response) => response.json())
+                .then(function(data){
+                    loading.style.display = "none";
+                    var i;
+                    if (JSON.stringify(data.alldata) === '{}'){
+                        let lganamediv = document.createElement('div');
+                        lganamediv.innerHTML = "The data does not exist."+'the status is 404';
+                        return div.appendChild(lganamediv);
+                    }
+                    if (data.alldata == 'The data does not exist.'){
+                        let lganamediv = document.createElement('div');
+                        lganamediv.innerHTML = "The data does not exist."+'the status is 404';
+                        return div.appendChild(lganamediv);
+                    }
+                    for (a in data.alldata){
+                        let filediv = document.createElement('pre');     //for output the data
+                        filediv.textContent =data.alldata[a];
+                        div.appendChild(filediv);
+                        }
+                    });
+                        parent_tag.appendChild(div);
+                }
+        }else{
+            loading.style.display = "none";
+            let lganamediv = document.createElement('div');
+            lganamediv.innerHTML = "Please fill out the inputs.";
+            return div.appendChild(lganamediv);
+        }
+    }
+
+    //Using Fetch for getting all data
+    function get_data_list(){
+        let loading = document.getElementById('loading');
+        loading.style.display = "block";
+        let name = document.getElementById('name').value;
+        let password = document.getElementById('password').value;
+        parent_tag =  document.getElementById("alldata");
+        let div =document.createElement('div');
+        let currentdate = new Date();
+        div.setAttribute('id',"showdatafile");
+        if(document.getElementById("showdatafile")){
+            dynamic_tag = document.getElementById("showdatafile");
+            parent_tag.removeChild(dynamic_tag);
+        }
+        if(document.getElementById("intoken")==null){
+            loading.style.display = "none";
+            let div =document.createElement('div');
+            div.setAttribute('id',"showdatafile");
+            div.innerHTML = "You should input name and password and get the login";
+            return parent_tag.appendChild(div);
+        }
+        intoken =  document.getElementById("intoken").textContent;
+        if (showAllData.checked){
+            const url = 'http://127.0.0.1:5000/getall?type='+'json';
+             fetch(url,{
+             method: 'get',
+             headers: {'Content-Type' : 'application/json',"AUTH_TOKEN":intoken}
+          }).then((response) => response.json())
+            .then(function(data){
+                loading.style.display = "none";
+                if (JSON.stringify(data.alldata) === '{}'){
+                    let lganamediv = document.createElement('div');
+                    lganamediv.innerHTML = "The data does not exist."+'. the status is 404';
+                    return div.appendChild(lganamediv);
+                }
+                var i;
+                for (a in data.alldata){
+                    let lganamediv = document.createElement('div');
+                    let filediv = document.createElement('pre');
+                    filediv.setAttribute('class',"json-renderer1");
+                    lganamediv.textContent = 'https://mlab.com/databases/my-database/collections/crime/'+a+'. the status is 200';
+                    lganamediv.appendChild(filediv)
+                    div.appendChild(lganamediv);
+                    $('.json-renderer1').jsonViewer(data.alldata[a]);
+                }
+            });
+                parent_tag.appendChild(div);
+        }else{
+            const url = 'http://127.0.0.1:5000/getall?type='+'xml';
+             fetch(url,{
+             method: 'get',
+             headers: {'Content-Type' : 'application/json',"AUTH_TOKEN":intoken}
+           }).then((response) => response.json())
+            .then(function(data){
+                loading.style.display = "none";
+                if (JSON.stringify(data.alldata) === '{}'){
+                    let lganamediv = document.createElement('div');
+                    lganamediv.innerHTML = "The data does not exist."+'. the status is 404';
+                    return div.appendChild(lganamediv);
+                }
+                var i;
+                for (a in data.alldata){
+                    let filediv = document.createElement('pre');
+                    filediv.textContent =data.alldata[a];
+                    div.appendChild(filediv);
+                    }
+                });
+                    parent_tag.appendChild(div);
+        }
+    }
+
+     //Using lganame for POSTING data:
+    function post_crimes_lgname(){
+        let loading = document.getElementById('loading');
+        loading.style.display = "block";
+        let name = document.getElementById('name').value;
+        let password = document.getElementById('password').value;
+        let lganam = document.getElementById('lganame').value;
+        parent_tag =  document.getElementById("dataentry");
+        if(document.getElementById("666")){
+            dynamic_tag = document.getElementById("666");
+            parent_tag.removeChild(dynamic_tag);
+        }
+        if(document.getElementById("intoken")==null){
+            loading.style.display = "none";
+            let div =document.createElement('div');
+            div.setAttribute('id',"666");
+            div.innerHTML = "You should input name and password and get the login";
+            return parent_tag.appendChild(div);
+        }
+        intoken =  document.getElementById("intoken").textContent;
+        const url = 'http://127.0.0.1:5000/crimes';
+        fetch(url, {
+            method: 'post',
+            headers: {'Content-Type' : 'application/json',"AUTH_TOKEN":intoken},
+            body: JSON.stringify({
+                name: document.getElementById('lganame').value
+            })
+        }).then(function(response){
+            return response.json()
+        }).then(function(data){
+            loading.style.display = "none";
+            if(data.lgname=="The LGA name you inputed doesn't exist."){
+                let div =document.createElement('div');
+                div.setAttribute('id',"666");
+                div.innerHTML = 'https://mlab.com/databases/my-database/collections/crime/'+data.lgname;
+                return parent_tag.appendChild(div);
+            }
+            if(data.message=="You are not authorized"){
+                let div =document.createElement('div');
+                div.setAttribute('id',"666");
+                div.innerHTML = data.message;
+                return parent_tag.appendChild(div);
+            }
+            let div =document.createElement('div');
+            div.setAttribute('id',"666");
+            div.innerHTML = 'https://mlab.com/databases/my-database/collections/crime/'+data.lgname;
+            parent_tag.appendChild(div);
+        }).catch(function(err){
+            console.log('Request failed', err);
+            });
+    }
+
+    //Using postcode for POSTING data:
+    function post_crimes_postcode(){
+        let loading = document.getElementById('loading');
+        loading.style.display = "block";
+        let name = document.getElementById('name').value;
+        let password = document.getElementById('password').value;
+        parent_tag =  document.getElementById("dataentry");
+
+        let postcode = document.getElementById('postcode').value
+
+        if(document.getElementById("666")){
+            dynamic_tag = document.getElementById("666");
+            parent_tag.removeChild(dynamic_tag);
+        }
+        if(isNaN(postcode)){
+            loading.style.display = "none";
+            let div =document.createElement('div');
+            div.setAttribute('id',"666");
+            div.innerHTML = "Please input digits number.";
+            return parent_tag.appendChild(div);
+        }
+        if(document.getElementById("intoken")==null){
+            loading.style.display = "none";
+            let div =document.createElement('div');
+            div.setAttribute('id',"666");
+            div.innerHTML = "You should input name and password and get the login";
+            return parent_tag.appendChild(div);
+        }
+        intoken =  document.getElementById("intoken").textContent;
+        const url = 'http://127.0.0.1:5000/crimes';
+        fetch(url, {
+            method: 'post',
+            headers: {'Content-Type': 'application/json',"AUTH_TOKEN":intoken},
+            body: JSON.stringify({
+                name: document.getElementById('postcode').value
+            })
+        }).then(function(response){
+            return response.json()
+        }).then(function (data){
+            loading.style.display = "none";
+            if(data.lgname=="The postcode you inputed doesn't exist."){
+                let div =document.createElement('div');
+                div.setAttribute('id',"666");
+                div.innerHTML = 'The postcode you inputed doesn\'t exist.';
+                return parent_tag.appendChild(div);
+            }
+            if(data.message=="You are not authorized"){
+                let div =document.createElement('div');
+                div.setAttribute('id',"666");
+                div.innerHTML = data.message;
+                return parent_tag.appendChild(div);
+            }
+            let lganamediv
+            for (var i in data.lgname){
+                lganamediv = document.createElement('h3');
+                lganamediv.setAttribute('id',"666");
+                lganamediv.innerHTML = 'https://mlab.com/databases/my-database/collections/crime/'+data.lgname[i]['locationID'];
+                parent_tag.appendChild(lganamediv);
+                }
+        }).catch(function (err) {
+            console.log('Request failed', err);
+        });
+    }
+
+    //for Deleting Data:
+    function delete_crimes_postcode(){
+        let loading = document.getElementById('loading');
+        loading.style.display = "block";
+        parent_tag = document.getElementById("deletedata");
+
+        if(document.getElementById("del")){
+            dynamic_tag = document.getElementById("del");
+            parent_tag.removeChild(dynamic_tag);
+        }
+        if(document.getElementById("intoken")==null){
+            loading.style.display = "none";
+            let div =document.createElement('div');
+            div.setAttribute('id',"del");
+            div.innerHTML = "You should input name and password and get the login";
+            return parent_tag.appendChild(div);
+        }
+        intoken =  document.getElementById("intoken").textContent;
+        var nameDelete = document.getElementById('dataDelete').value;
+        const url = 'http://127.0.0.1:5000/delete?name='+nameDelete;
+        fetch(url, {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json',"AUTH_TOKEN":intoken}
+        }).then(function(response){
+                loading.style.display = "none";
+                if(response.status==401){      //it is only for admin
+                    let div =document.createElement('div');
+                    div.setAttribute('id',"del");
+                    div.innerHTML = 'You are not authorized';
+                    return parent_tag.appendChild(div);
+                }
+                if(response.status==404){    //when the data is not found
+                    let div =document.createElement('div');
+                    div.setAttribute('id',"del");
+                    div.innerHTML = "The Id "+nameDelete+" is not in the database"+'. the status is 404';
+                    return parent_tag.appendChild(div);
+                }
+                let div = document.createElement('div');  //when the data is found
+                div.setAttribute('id',"del");
+                div.innerHTML ="You have successfully deleted "+nameDelete+'. the status is 200';
+                parent_tag.appendChild(div);
+            });
+    }
+</script>
+</body>
+</html>
